@@ -1,31 +1,69 @@
-use std::fs;
+use aes::Aes128;
+
+use cbc::{
+    Encryptor,
+    Decryptor,
+};
+
+use cbc::cipher::{
+    block_padding::Pkcs7,
+    BlockEncryptMut,
+    BlockDecryptMut,
+    KeyIvInit,
+};
+
+
 
 fn main() {
-    // 1. Ruta al archivo BOOT.BIN 
-    let ruta: &str = "/home/snake/Downloads/lego_batman_game/PSP_GAME/SYSDIR/EBOOT.BIN";
+    // Investigating how encrypt and decrypt works
+    let plaintext = b"Hoal ente como aqndan";
 
-    println!("Intentando cargar: {}", ruta);
+    println!("PLAINTEXT");
+    println!("{}", String::from_utf8_lossy(plaintext));
 
-    // 2. Cargamos TODO el archivo crudo en un vector dinámico de bytes (Vec<u8>)
-    let boot_bin = match fs::read(ruta) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            eprintln!("Fallo leyendo el archivo: {}", e);
-            return;
-        }
-    };
+    // AES-128 KEY (16 bytes)
+    let key = b"1234567890abcdef";
 
-    println!("¡Archivo en memoria! Pesa: {} bytes", boot_bin.len());
+    // IV (16 Bytes)
+    let iv = b"initvector123456";
 
-    if boot_bin.len() >= 28 {
-        let magic_number = &boot_bin[0..4];
-        println!("Primeros 4 bytes: {:X?}", magic_number);
+    // Encryptor
+    let encryptor = Encryptor::<Aes128>::new(key.into(), iv.into());
 
-        // Acá verificamos que si es un ELF Puro (o sea desencriptado)
-        if magic_number == [0x7F, 0x45, 0x4C, 0x46] {
-            println!("Es un ejecutable ELF limpio");
-        }
+    // BUFFER
+    let mut buffer = plaintext.to_vec();
 
-    }
+    // espacio extra para el padding
+    buffer.resize(buffer.len()+16, 0);
+
+    // encrypt
+    let ciphertext = encryptor.encrypt_padded_mut::<Pkcs7>(
+        &mut buffer,
+        plaintext.len(),
+    ).unwrap();
+
+    println!("CIPHERTEXT");
+
+    println!("{:?}", ciphertext);
+
+
+    // DECRYPTOR
+
+    let decryptor =
+        Decryptor::<Aes128>::new(key.into(), iv.into());
+
+    // necesitamos buffer mutable
+    let mut decrypt_buffer = ciphertext.to_vec();
+
+    // DECRYPT
+
+    let decrypted = decryptor
+        .decrypt_padded_mut::<Pkcs7>(
+            &mut decrypt_buffer
+        )
+        .unwrap();
+
+    println!("\nDECRYPTED:");
+    println!("{}", String::from_utf8_lossy(decrypted));
    
 }
