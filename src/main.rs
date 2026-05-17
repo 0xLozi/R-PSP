@@ -1,69 +1,44 @@
-use aes::Aes128;
+mod kirk_core;
+use std::fs;
 
-use cbc::{
-    Encryptor,
-    Decryptor,
-};
-
-use cbc::cipher::{
-    block_padding::Pkcs7,
-    BlockEncryptMut,
-    BlockDecryptMut,
-    KeyIvInit,
-};
-
-
+const SIZE_MAGIC_NUMBER: usize = 4;
+const ELF_REPRESENTATION: [u8;4] = [0x7F, 0x45, 0x4C, 0x46];
 
 fn main() {
-    // Investigating how encrypt and decrypt works
-    let plaintext = b"Hoal ente como aqndan";
+    let bytes = [0x70, 0xB7, 0x3E, 0x00];
+    let value = u32::from_le_bytes(bytes);
 
-    println!("PLAINTEXT");
-    println!("{}", String::from_utf8_lossy(plaintext));
+    println!("{:#X}", value);
 
-    // AES-128 KEY (16 bytes)
-    let key = b"1234567890abcdef";
+    // Primero leo los primeros 4 bytes: si dicen ELF seguimos
+    let ruta: &str = "/home/snake/Downloads/lego_batman_game/PSP_GAME/SYSDIR/EBOOT.BIN";
+    println!("Intentando cargar: {}", ruta);
 
-    // IV (16 Bytes)
-    let iv = b"initvector123456";
+    // Cargamos TODO el archivo crudo en un vector dinámico de bytes (Vec<u8>)
+    let boot_binario: Vec<u8> = match fs::read(ruta) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("Fallo leyendo el archivo: {}", e);
+            return;
+        }
+    };
 
-    // Encryptor
-    let encryptor = Encryptor::<Aes128>::new(key.into(), iv.into());
+    println!("¡Archivo en memoria! Pesa: {} bytes", boot_binario.len());
+    if boot_binario.len() > SIZE_MAGIC_NUMBER {
+        // Ahora sacamos el magic number
+        let magic_number = &boot_binario[0..4];
 
-    // BUFFER
-    let mut buffer = plaintext.to_vec();
+        // Y acá es donde verificamos si es un ELF 
+        if magic_number == ELF_REPRESENTATION {
+            println!("This is a clean ELF executable");
+        } else {
+            println!("This isn't a clean ELF executable...\n posibbly is an encrypted binary file...");
+            println!("Let's see what is says the first 4 bytes of de BIN file");
+            let assci_representation = String::from_utf8_lossy(magic_number);
+            println!("{}", assci_representation);
+        }
 
-    // espacio extra para el padding
-    buffer.resize(buffer.len()+16, 0);
+    }
 
-    // encrypt
-    let ciphertext = encryptor.encrypt_padded_mut::<Pkcs7>(
-        &mut buffer,
-        plaintext.len(),
-    ).unwrap();
-
-    println!("CIPHERTEXT");
-
-    println!("{:?}", ciphertext);
-
-
-    // DECRYPTOR
-
-    let decryptor =
-        Decryptor::<Aes128>::new(key.into(), iv.into());
-
-    // necesitamos buffer mutable
-    let mut decrypt_buffer = ciphertext.to_vec();
-
-    // DECRYPT
-
-    let decrypted = decryptor
-        .decrypt_padded_mut::<Pkcs7>(
-            &mut decrypt_buffer
-        )
-        .unwrap();
-
-    println!("\nDECRYPTED:");
-    println!("{}", String::from_utf8_lossy(decrypted));
-   
 }
+
