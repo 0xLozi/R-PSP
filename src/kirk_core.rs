@@ -1,3 +1,6 @@
+use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
+
+type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 // Esto sirve para poder desencriptar LAS LLAVES DEL JUEGO
 const KIRK1_KEY: [u8; 16] = [
@@ -6,7 +9,7 @@ const KIRK1_KEY: [u8; 16] = [
 ];
 
 // Estas son las claves para desencriptar el juego JEJEJEJE
-static KEYVAULT: [[u8; 16]; 128] = [
+static _KEYVAULT: [[u8; 16]; 128] = [
     [0x2C, 0x92, 0xE5, 0x90, 0x2B, 0x86, 0xC1, 0x06, 0xB7, 0x2E, 0xEA, 0x6C, 0xD4, 0xEC, 0x72, 0x48],
     [0x05, 0x8D, 0xC8, 0x0B, 0x33, 0xA5, 0xBF, 0x9D, 0x56, 0x98, 0xFA, 0xE0, 0xD3, 0x71, 0x5E, 0x1F],
     [0xB8, 0x13, 0xC3, 0x5E, 0xC6, 0x44, 0x41, 0xE3, 0xDC, 0x3C, 0x16, 0xF5, 0xB4, 0x5E, 0x64, 0x84],
@@ -137,3 +140,25 @@ static KEYVAULT: [[u8; 16]; 128] = [
     [0x5F, 0x8C, 0x17, 0x9F, 0xC1, 0xB2, 0x1D, 0xF1, 0xF6, 0x36, 0x7A, 0x9C, 0xF7, 0xD3, 0xD4, 0x7C],
 ];
 
+    // ==========================================================================
+    // Por qué usamos NoPadding?
+    // ==========================================================================
+    // 1. AES es un cifrador de bloques estricto: solo mastica por así decirlo bloques de 16 bytes.
+    // 2. El Padding (ej. PKCS7) se usa para rellenar archivos que no son múltiplos
+    //    de 16. Y al desencriptar, el motor busca esos bytes de relleno y los termina "borrando".
+    // 3. Nuestro bloque: Extraemos EXACTAMENTE 32 bytes de la cabecera KIRK
+    //    (2 bloques perfectos de 16 bytes: AES KEY y CMAC KEY). 
+    // 4. El peligro: Si no atamos las manos del motor con <NoPadding>, podria intentar 
+    //    leer el final de nuestra CMAC KEY creyendo que es basura de relleno. 
+    //    Esto resultaría en la mutilación de la llave o en un Panic (crash).
+    // ==========================================================================
+
+pub fn decrypt_game_keys(llaves_encriptadas: &mut [u8; 32]) {
+    // 1. El IV para la extracción de la cabecera siempre es 0 en este comando del chip KIRK
+    let iv = [0u8; 16];
+
+    // 2. Cargamos el motor AES pasándole la llave maestra de Sony y el IV
+    let decryptor = Aes128CbcDec::new(&KIRK1_KEY.into(), &iv.into());
+    // desencriptamos jejeje (EL NO PADDING ES POR ESTO: )
+    decryptor.decrypt_padded_mut::<NoPadding>(llaves_encriptadas).expect("Fallo crítico intentando desencriptar las llaves");
+}

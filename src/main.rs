@@ -67,12 +67,6 @@ fn main() {
         println!("los tamaños no coinciden.... PUEDE SER (seguramente) que el juego se encuentre corrupto");
     }
 
-
-
-
-
-
-
     // SIGUIENTE FASE: LECTURA DEL TAG
     // EN POCAS PALABRAS ES NECESARIO PARA SABER DONDE SE ENCUENTRA LA CABECERA KIRK
     let offset_tag = 0xD0;
@@ -99,12 +93,8 @@ fn main() {
 
 
 
-
-
-
-
     // Hora de extraer los 32 bytes de la cabecera KIRK
-    let mut llaves_encriptadas: [u8; 32] = match boot_binario[keys_offset .. keys_offset+32].try_into() {
+    let mut llave_encriptada: [u8; 32] = match boot_binario[keys_offset .. keys_offset+32].try_into() {
         Ok(slice) => slice,
         Err(_) => {
             eprintln!("Error, no se pudieron extraer los 32 bytes...");
@@ -112,8 +102,25 @@ fn main() {
         }
     };
 
-    println!("Llaves extraidas: {:02X?}", llaves_encriptadas);
+    println!("Llave extraida: {:02X?}", llave_encriptada);
     println!("Iniciando desencriptación utilizando AES-128-CBC CON KIKR1-KEY");
+
+    // ahora desencripto con la clave KIRK1 KEY GLOBAL Y CONSIGO LA CLAVE ÚNICA DE MI JUEGO, la cual debo utilizar (...) para poder conseguir el archivo elf
+    // Iniciando motor
+    println!("Iniciando motor AES-128-CBC....");
+    kirk_core::decrypt_game_keys(&mut llave_encriptada);
+    println!("Desencriptación de la llave del juego exitosa!!!");
+
+    // Ahora tras la desencriptación tenemos que separar la clave aes de la cmac
+    let aes_key_juego = &llave_encriptada[0..16];
+    let cmac_key_juego = &llave_encriptada[16..32];
+
+    println!("----------------------------------");
+    println!("🗿DESENCRIPTACIÓN COMPLETADA LET'S GOOO🗿");
+    println!("🔐 aes key: {:02X?}", aes_key_juego);
+    println!("🛡️  cmac key: {:02X?}", cmac_key_juego);
+    println!("----------------------------------");
+
 
 
 
