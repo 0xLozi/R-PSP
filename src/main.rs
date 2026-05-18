@@ -1,5 +1,6 @@
 mod kirk_core;
 use std::fs;
+mod offset_keys;
 
 const SIZE_MAGIC_NUMBER: usize = 4;
 const ELF_REPRESENTATION: [u8;4] = [0x7F, 0x45, 0x4C, 0x46];
@@ -65,6 +66,60 @@ fn main() {
     } else {
         println!("los tamaños no coinciden.... PUEDE SER (seguramente) que el juego se encuentre corrupto");
     }
+
+
+
+
+
+
+
+    // SIGUIENTE FASE: LECTURA DEL TAG
+    // EN POCAS PALABRAS ES NECESARIO PARA SABER DONDE SE ENCUENTRA LA CABECERA KIRK
+    let offset_tag = 0xD0;
+    let tag_bytes: [u8;4] = match boot_binario[offset_tag .. offset_tag + 4].try_into() {
+        Ok(slice) => slice,
+        Err(_) => {
+            eprintln!("Error extrayendo los bytes del Tag...");
+            return;
+        }
+    };
+
+    // Ahora parseamos a u32 Little Endian
+    let tag = u32::from_le_bytes(tag_bytes);
+    println!("Sub type (Tag) leido: 0x{:08X}", tag);
+
+    let keys_offset = match offset_keys::get_kirk_offset(tag) {
+        Some(offset) => offset,
+        None => {
+            println!("Tag desconocido... No hay ruta hacia las llaves....");
+            return;
+        }
+    };
+    println!("VAMOS!!! Las llaves encriptadas empiezan en el offset: 0x{:03X}", keys_offset);
+
+
+
+
+
+
+
+    // Hora de extraer los 32 bytes de la cabecera KIRK
+    let mut llaves_encriptadas: [u8; 32] = match boot_binario[keys_offset .. keys_offset+32].try_into() {
+        Ok(slice) => slice,
+        Err(_) => {
+            eprintln!("Error, no se pudieron extraer los 32 bytes...");
+            return;
+        }
+    };
+
+    println!("Llaves extraidas: {:02X?}", llaves_encriptadas);
+    println!("Iniciando desencriptación utilizando AES-128-CBC CON KIKR1-KEY");
+
+
+
+
+
+
 }
 
 
