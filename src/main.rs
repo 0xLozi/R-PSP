@@ -40,5 +40,31 @@ fn main() {
 
     }
 
+    println!("\n");
+    println!("Ahora vamos a verificar el total size que nos dice el archivo binario. Esto para asegurarnos de que el archivo no se encuentra corrupto (segun la página: 0x2C)");
+
+    // 1. Definimos de dónde a dónde queremos cortar (0x2C hasta 0x30)
+    let offset_size = 0x2C;
+
+    // Despues extraemos los 4 bytes necesarios para saber cuánto es el size especifico
+    let size_bytes: [u8; 4] = match boot_binario[offset_size .. offset_size + 4].try_into() {
+        Ok(slice) => slice,
+        Err(_) => {
+            eprintln!("Error crítico: no se pudieron extraer los 4 bytes... por qué carajos es?");
+            return; // para abortar la misión
+        }
+    };
+
+    // Y por último: imprimimos el total size
+    let total_size = u32::from_le_bytes(size_bytes);
+    println!("{}", total_size);
+
+    println!("\n \n Ahora comparamos con el size del boot_binario: {} y el size que nos dice los 4 bytes extraidos: {}", boot_binario.len(), total_size);
+    if boot_binario.len() as u32 == total_size {
+        println!("Los tamaños coinciden VAMOOOOOOOOOS");
+    } else {
+        println!("los tamaños no coinciden.... PUEDE SER (seguramente) que el juego se encuentre corrupto");
+    }
 }
+
 
