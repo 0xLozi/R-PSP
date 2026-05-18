@@ -162,3 +162,4 @@ pub fn decrypt_game_keys(llaves_encriptadas: &mut [u8; 32]) {
     // desencriptamos jejeje (EL NO PADDING ES POR ESTO: )
     decryptor.decrypt_padded_mut::<NoPadding>(llaves_encriptadas).expect("Fallo crítico intentando desencriptar las llaves");
 }
+

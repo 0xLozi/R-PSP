@@ -27,3 +27,17 @@ pub fn get_kirk_offset(tag: u32) -> Option<usize> {
         _ => None,
     }
 }
+
+
+/// Recibe el Sub Type (Tag) del EBOOT, calcula el offset base de KIRK
+/// y le suma el tamaño fijo de la estructura (0x280) para devolver
+/// la dirección absoluta exacta donde arranca el juego encriptado (Payload).
+pub fn get_data_offset(tag: u32) -> Option<usize> {
+    // Buscamos primero donde empieza la cabecera KIRK usando mi función existente
+    match get_kirk_offset(tag) {
+        // Contrato de hardware! Sumamos 0x280 bytes fijos a la base
+        Some(kirk_offset) => Some(kirk_offset + 0x280),
+        // Si el Tag no existe en la lista, devolvemos None
+        None => None,
+    }
+}

@@ -121,10 +121,42 @@ fn main() {
     println!("🛡️  cmac key: {:02X?}", cmac_key_juego);
     println!("----------------------------------");
 
+    // ==========================================================================
+    // LOCALIZAR EL PAYLOAD (EL JUEGO ENCRIPTADO)
+    // ==========================================================================
+    println!("\n🔍 Localizando el Payload (código encriptado del juego)...");
 
+    // ⚠️ NOTA DE INGENIERÍA INVERSA: EL CONTRATO DE HARDWARE KIRK
+    // Por qué no leemos los offsets 0x24 y 0x28 de la cabecera principal EBOOT?
+    // Porque en juegos encriptados oficiales, esos bytes guardan configuraciones 
+    // internas del chip KIRK (flags, firmware reqs), NO direcciones de memoria reales.
+    // 
+    // LA SOLUCIÓN: La arquitectura de Sony tiene un "Contrato de Hardware" estricto.
+    // La estructura de configuración del chip KIRK siempre mide EXACTAMENTE 
+    // 0x280 bytes (640 en decimal) contados a partir del inicio del bloque de llaves.
+    // 
+    // Por lo tanto, el Payload (el juego real) SIEMPRE arranca en: [Offset_Llaves + 0x280]
+    // La función `get_data_offset` lee el Tag, busca el offset base de las llaves, 
+    // le suma por contrato los 0x280 bytes, y nos devuelve la dirección
 
+    let data_offset = match offset_keys::get_data_offset(tag) {
+        Some(offset) => offset,
+        None => {
+            eprintln!("Error crítico: Versión de encriptación (Tag) no soportada.");
+            return;
+        }
+    };
 
+    // El tamaño del juego es todo lo que queda del archivo a partir de ese punto
+    let data_size = boot_binario.len() - data_offset;
 
+    println!("🎯 ¡Mapeo exitoso para Tag 0x{:08X}!", tag);
+    println!("📍 El juego encriptado arranca en el offset: 0x{:08X}", data_offset);
+    println!("📦 Tamaño del bloque a desencriptar: {} bytes", data_size);
+
+    // Cortamos la porcion exacta de la memoria
+    let payload_encriptado = &boot_binario[data_offset .. data_offset + data_size];
+    println!("Bloque de {} bytes aislado con éxito!", payload_encriptado.len());
 
 
 }
