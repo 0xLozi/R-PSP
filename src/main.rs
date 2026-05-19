@@ -32,36 +32,9 @@ fn main() -> Result<(), String> {
     // ==========================================================================
     // LOCALIZAR EL PAYLOAD (EL JUEGO ENCRIPTADO)
     // ==========================================================================
-    println!("\n🔍 Localizando el Payload (código encriptado del juego)...");
-
-    // NOTA: EL CONTRATO DE HARDWARE KIRK
-    // Por qué no leemos los offsets 0x24 y 0x28 de la cabecera principal EBOOT?
-    // Porque en juegos encriptados oficiales, esos bytes guardan configuraciones 
-    // internas del chip KIRK (flags, firmware reqs), NO direcciones de memoria reales.
-    // 
-    // LA SOLUCIÓN: La arquitectura de Sony tiene un "Contrato de Hardware" estricto.
-    // La estructura de configuración del chip KIRK siempre mide EXACTAMENTE 
-    // 0x280 bytes (640 en decimal) contados a partir del inicio del bloque de llaves.
-    // 
-    // Por lo tanto, el Payload (el juego real) SIEMPRE arranca en: [Offset_Llaves + 0x280]
-    // La función `get_data_offset` lee el Tag, busca el offset base de las llaves, 
-    // le suma por contrato los 0x280 bytes, y nos devuelve la dirección
-    let tag: u32 = get_tag(&boot_binario).ok_or("no se pudo conseguir el tag")?;
-
-    let data_offset: usize = offset_keys::get_data_offset(tag)
-    .ok_or("Error crítico: Versión de encriptación (Tag) no soportada")?;
-
-
-
-    // El tamaño del juego es todo lo que queda del archivo a partir de ese punto
-    let data_size = boot_binario.len() - data_offset;
-
-    println!("🎯 ¡Mapeo exitoso para Tag 0x{:08X}!", tag);
-    println!("📍 El juego encriptado arranca en el offset: 0x{:08X}", data_offset);
-    println!("📦 Tamaño del bloque a desencriptar: {} bytes", data_size);
+    decrypt_payload(&boot_binario);
 
     Ok(())
-
 
 }
 
@@ -99,19 +72,31 @@ fn verificar_extension_binario(boot_binario: &[u8]) {
     println!("¡Archivo en memoria! Pesa: {} bytes", boot_binario.len());
     if boot_binario.len() > SIZE_MAGIC_NUMBER {
         // Ahora sacamos el magic number
-        let magic_number = &boot_binario[0..4];
+        let extension = &boot_binario[0..4];
 
         // Y acá es donde verificamos si es un ELF 
-        if magic_number == ELF_REPRESENTATION {
+        if extension == ELF_REPRESENTATION {
             println!("This is a clean ELF executable");
         } else {
             println!("This isn't a clean ELF executable...\n posibbly is an encrypted binary file...");
             println!("Let's see what is says the first 4 bytes of de BIN file");
-            let assci_representation = String::from_utf8_lossy(magic_number);
+            let assci_representation = String::from_utf8_lossy(extension);
             println!("{}", assci_representation);
         }
     }
+
+    let ct: [u8; 2] = boot_binario[0x6..0x8].try_into().unwrap();
+    let compression_type = u16::from_le_bytes(ct) & 0xF00;  // 👈 máscara importante
+    let type_compression = match compression_type {
+        0x000 => "GZIP",
+        0x100 => "2RLZ",
+        0x200 => "KL4E",
+        0x300 => "Plain (sin compresión)",
+        _ => "Desconocido",
+    };
+    println!("Compression type: {}", type_compression);
 }
+
 
 fn get_tag(boot_binario: &[u8]) -> Option<u32> {
     let offset_tag = 0xD0;
@@ -166,4 +151,48 @@ fn get_aes_key(boot_binario: &[u8]) -> Option<Vec<u8>> {
 
     Some(aes_key_juego.to_vec())
    
+}
+
+
+
+// enum ScePrxEncryptType {
+//     DECRYPT_MODE_NONE                       = 0,
+//     DECRYPT_MODE_INTERNAL_MODULE            = 1,
+//     DECRYPT_MODE_KERNEL_MODULE              = 2,
+//     DECRYPT_MODE_VSH_MODULE                 = 3,
+//     DECRYPT_MODE_USER_MODULE                = 4,
+//     DECRYPT_MODE_UNKNOWN_5                  = 5,
+//     DECRYPT_MODE_UNKNOWN_6                  = 6,
+//     DECRYPT_MODE_PSAR_DEVTOOL               = 7,
+//     DECRYPT_MODE_VSH_INDEX_DAT              = 8,
+//     DECRYPT_MODE_UMD_GAME_EXEC              = 9,
+//     DECRYPT_MODE_GAMESHARING_EXEC           = 10,
+//     DECRYPT_MODE_GAMESHARING_EXEC_DEVTOOL   = 11,
+//     DECRYPT_MODE_MS_UPDATER                 = 12,
+//     DECRYPT_MODE_DEMO_EXEC                  = 13,
+//     DECRYPT_MODE_APP_MODULE                 = 14,
+//     DECRYPT_MODE_PSAR_RETAIL                = 15,
+//     DECRYPT_MODE_ME_IMAGE                   = 16,
+//     DECRYPT_MODE_UNKNOWN_17                 = 17,
+//     DECRYPT_MODE_MS_GAME_PATCH              = 18,
+//     DECRYPT_MODE_MS_GAME_PATCH_DEVTOOL      = 19,
+//     DECRYPT_MODE_POPS_EXEC                  = 20,
+//     DECRYPT_MODE_UNKNOWN_21                 = 21,
+//     DECRYPT_MODE_UNKNOWN_22                 = 22,
+//     DECRYPT_MODE_USER_NPDRM                 = 23,
+//     DECRYPT_MODE_UNKNOWN_24                 = 24,
+//}
+    
+
+pub fn decrypt_payload(boot_binario: &[u8]) {
+    let encrypt_type: [u8;2] = boot_binario[0x7C .. 0x7C + 2].try_into().unwrap();
+    let encrypt = u16::from_le_bytes(encrypt_type);
+    println!("ENCRYPT TYPE: {}", encrypt);
+
+    println!("Ahora toca leer el subtype");
+    let sub_type: [u8;4] = boot_binario[0xD0 .. 0xD0+4].try_into().unwrap();
+    let sub_type_le = u32::from_le_bytes(sub_type);
+    println!("SUB TYPE: 0x{:08X}", sub_type_le);
+
+
 }

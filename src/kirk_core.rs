@@ -163,3 +163,21 @@ pub fn decrypt_game_keys(llaves_encriptadas: &mut [u8; 32]) {
     decryptor.decrypt_padded_mut::<NoPadding>(llaves_encriptadas).expect("Fallo crítico intentando desencriptar las llaves");
 }
 
+
+// ==========================================================================
+// DESENCRIPTAR EL JUEGO REAL (PAYLOAD)
+// ==========================================================================
+pub fn decrypt_payload(llave_aes: &[u8], payload: &mut [u8]) {
+    // Por el contrato del hardware KIRK (CMD 1), el Initialization Vector (IV) 
+    // para el payload principal siempre es una matriz de 16 ceros.
+    let iv = [0u8; 16]; 
+    
+    // Iniciamos el motor usando la llave AES única que extrajimos de tu EBOOT
+    let decryptor = Aes128CbcDec::new(llave_aes.into(), &iv.into());
+    
+    // Usamos NoPadding porque el payload es código máquina binario. 
+    // Cualquier byte que el motor AES asuma que es relleno y borre por error, 
+    // nos corrompería el ejecutable.
+    decryptor.decrypt_padded_mut::<NoPadding>(payload)
+        .expect("Fallo crítico intentando desencriptar el Payload del juego");
+}
