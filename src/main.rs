@@ -194,5 +194,17 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
     let sub_type_le = u32::from_le_bytes(sub_type);
     println!("SUB TYPE: 0x{:08X}", sub_type_le);
 
+    // Me fuí al PrxDecrypter.cpp a buscar mi tag y tiene esto:
+    // 	{ 0xC0CB167C, g_keyEBOOT2xx, 0x5D, 0x5D },
+    // como es un static const TAG_INFO g_tagInfo[], su estructura se compone de:
+    //
+    // struct TAG_INFO
+    // {
+    //     u32 tag; // 4 byte value at offset 0xD0 in the PRX file
+    //     const u32 *key; // "step1_result" use for XOR step
+    //     u8 code;
+    //     u8 codeExtra;
+    // };
+
 
 }
