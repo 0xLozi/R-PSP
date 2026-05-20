@@ -205,6 +205,114 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
     //     u8 code;
     //     u8 codeExtra;
     // };
+    // static const u32 g_keyEBOOT2xx[] = {
+	// 	0xDA8E36FA, 0x5DD97447, 0x76C19874, 0x97E57EAF, 0x1CAB09BD, 0x9835BAC6,
+	// 	0x03D39281, 0x03B205CF, 0x2882E734, 0xE714F663, 0xB96E2775, 0xBD8AAFC7,
+	// 	0x1DD3EC29, 0xECA4A16C, 0x5F69EC87, 0x85981E92, 0x7CFCAE21, 0xBAE9DD16,
+	// 	0xE6A97804, 0x2EEE02FC, 0x61DF8A3D, 0xDD310564, 0x9697E149, 0xC2453F3B,
+	// 	0xF91D8456, 0x39DA6BC8, 0xB3E5FEF5, 0x89C593A3, 0xFB5C8ABC, 0x6C0B7212,
+	// 	0xE10DD3CB, 0x98D0B2A8, 0x5FD61847, 0xF0DC2357, 0x7701166A, 0x0F5C3B68};
 
+    let g_keyEBOOT2xx: [u32; 36] = [
+		0xDA8E36FA, 0x5DD97447, 0x76C19874, 0x97E57EAF, 0x1CAB09BD, 0x9835BAC6,
+		0x03D39281, 0x03B205CF, 0x2882E734, 0xE714F663, 0xB96E2775, 0xBD8AAFC7,
+		0x1DD3EC29, 0xECA4A16C, 0x5F69EC87, 0x85981E92, 0x7CFCAE21, 0xBAE9DD16,
+		0xE6A97804, 0x2EEE02FC, 0x61DF8A3D, 0xDD310564, 0x9697E149, 0xC2453F3B,
+		0xF91D8456, 0x39DA6BC8, 0xB3E5FEF5, 0x89C593A3, 0xFB5C8ABC, 0x6C0B7212,
+		0xE10DD3CB, 0x98D0B2A8, 0x5FD61847, 0xF0DC2357, 0x7701166A, 0x0F5C3B68
+    ];
+
+    println!("g_keyEBOOT2xx[0] = 0x{:08X}", g_keyEBOOT2xx[0]);
+    println!("to_le_bytes() = {:02X?}", g_keyEBOOT2xx[0].to_le_bytes());
+    // Esperado: [FA, 36, 8E, DA]
+
+    let aes_key_aux: [u32; 4] = g_keyEBOOT2xx[0..4].try_into().unwrap();
+    let vec_aes: Vec<u8> = aes_key_aux
+                            .iter()
+                            .flat_map(|&v| v.to_le_bytes())
+                            .collect();
+    let aes_key: [u8;16] = vec_aes.try_into().unwrap();
+
+    println!("AES Key (hex): {:02X?}", aes_key);
+
+    let iv_key_aux: [u32; 4] = g_keyEBOOT2xx[4..8].try_into().unwrap();
+    let vec_iv: Vec<u8> = iv_key_aux
+                .iter()
+                .flat_map(|&v| v.to_le_bytes())
+                .collect();
+    let iv_key: [u8;16] = vec_iv.try_into().unwrap();
+
+
+    // Offset: 0x140 Size: 0x10 Name: Data Key Notes: ?AES? Key
+    // Por lo tanto desde ahí debo desencriptar. Despues:
+    // Calcular total size y ese total size - 0x150  seria el payload len()
+    // 150 porque el data key mide 0x10
+    
+    let data_offset = 0x150;
+    let offset_size = 0x2C;
+
+    // Despues extraemos los 4 bytes necesarios para saber cuánto es el size especifico
+    let size_bytes: [u8; 4] = match boot_binario[offset_size .. offset_size + 4].try_into() {
+        Ok(slice) => slice,
+        Err(_) => {
+            eprintln!("Error crítico: no se pudieron extraer los 4 bytes... por qué carajos es?");
+            return; // para abortar la misión
+        }
+    };
+
+    let total_size = u32::from_le_bytes(size_bytes);
+    println!("TOTAL SIZE: {}", total_size);
+
+    
+    let payload= &boot_binario[0x150..total_size as usize];
+
+    let mut payload_vec: Vec<u8> = payload.to_vec();
+
+    // Si total_size coincide con el tamaño del archivo
+    assert_eq!(total_size as usize, boot_binario.len());
+
+    // let end = total_size.min(boot_binario.len() as u32) as usize;
+    // let payload = &boot_binario[0x150..end];
+
+    // FALTA REALIZAR EL XOR
+    let xor_mask:[u32;28]= g_keyEBOOT2xx[8..36].try_into().unwrap();
+    let vec: Vec<u8> = xor_mask
+            .iter()
+            .flat_map(|&v| v.to_le_bytes())
+            .collect();
+
+    let xor_converted:[u8; 112] = vec.try_into().unwrap();
+
+    // HORA DE APLICAR XOR AL PAYLOAD AAAAAAAAAAAAAAA
+    for i in 0 .. payload.len() {
+        payload_vec[i] ^= xor_converted[i % 112];
+    }
+
+
+    // HORA DE DESENCRIPTAR
+    kirk_core::decrypt_payload(&aes_key, &iv_key, &mut payload_vec);
+
+
+
+    // payload_vec ya tiene el resultado descifrado (y mutado in-place)
+    if payload_vec.len() >= 4 && &payload_vec[0..4] == b"\x7FELF" {
+        println!("✅ Éxito: ELF válido detectado");
+        // Aquí podés escribir payload_vec a un archivo .elf para analizarlo
+    } else {
+        println!("❌ Fallo: Magic incorrecto {:?}", &payload_vec[0..4]);
+    }
+
+    // Después de AES, antes de descomprimir:
+    if &payload_vec[0..2] == b"\x1F\x8B" {
+        println!("✅ Datos GZIP detectados, procediendo a descomprimir...");
+    } else {
+        println!("no son datos gzip...");
+    }
+
+    if &payload_vec[0..2] == b"\x1F\x8B" {
+        println!("es un magic gzip? ni idea");
+    } else {
+        println!(" no es nada... sigamos");
+    }
 
 }

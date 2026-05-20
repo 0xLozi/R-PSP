@@ -167,13 +167,9 @@ pub fn decrypt_game_keys(llaves_encriptadas: &mut [u8; 32]) {
 // ==========================================================================
 // DESENCRIPTAR EL JUEGO REAL (PAYLOAD)
 // ==========================================================================
-pub fn decrypt_payload(llave_aes: &[u8], payload: &mut [u8]) {
-    // Por el contrato del hardware KIRK (CMD 1), el Initialization Vector (IV) 
-    // para el payload principal siempre es una matriz de 16 ceros.
-    let iv = [0u8; 16]; 
-    
+pub fn decrypt_payload(llave_aes: &[u8;16], llave_iv: &[u8;16], payload: &mut [u8]) {
     // Iniciamos el motor usando la llave AES única que extrajimos de tu EBOOT
-    let decryptor = Aes128CbcDec::new(llave_aes.into(), &iv.into());
+    let decryptor = Aes128CbcDec::new(llave_aes.into(), llave_iv.into());
     
     // Usamos NoPadding porque el payload es código máquina binario. 
     // Cualquier byte que el motor AES asuma que es relleno y borre por error, 
