@@ -233,7 +233,6 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
                             .collect();
     let aes_key: [u8;16] = vec_aes.try_into().unwrap();
 
-    println!("AES Key (hex): {:02X?}", aes_key);
 
     let iv_key_aux: [u32; 4] = g_keyEBOOT2xx[4..8].try_into().unwrap();
     let vec_iv: Vec<u8> = iv_key_aux
@@ -242,6 +241,8 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
                 .collect();
     let iv_key: [u8;16] = vec_iv.try_into().unwrap();
 
+    println!("AES Key (hex): {:02X?}", aes_key);  // La nueva, correcta
+    println!("IV Key (hex): {:02X?}", iv_key);    // La extraída del keyblock
 
     // Offset: 0x140 Size: 0x10 Name: Data Key Notes: ?AES? Key
     // Por lo tanto desde ahí debo desencriptar. Despues:
@@ -315,4 +316,62 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
         println!(" no es nada... sigamos");
     }
 
+
+    /// AHORA SI, CREO QUE YA LO ENTENDI
+    final_decryption(boot_binario);
+
+}
+
+
+pub fn final_decryption(boot_binario: &Vec<u8>) {
+
+    // Primero hay que extraer el kirk header
+    let kirk_header: &[u8] = boot_binario[0x00..0x150].try_into().unwrap();
+
+    
+    let mut g_key_eboot_2xx: [u32; 36] = [
+		0xDA8E36FA, 0x5DD97447, 0x76C19874, 0x97E57EAF, 0x1CAB09BD, 0x9835BAC6,
+		0x03D39281, 0x03B205CF, 0x2882E734, 0xE714F663, 0xB96E2775, 0xBD8AAFC7,
+		0x1DD3EC29, 0xECA4A16C, 0x5F69EC87, 0x85981E92, 0x7CFCAE21, 0xBAE9DD16,
+		0xE6A97804, 0x2EEE02FC, 0x61DF8A3D, 0xDD310564, 0x9697E149, 0xC2453F3B,
+		0xF91D8456, 0x39DA6BC8, 0xB3E5FEF5, 0x89C593A3, 0xFB5C8ABC, 0x6C0B7212,
+		0xE10DD3CB, 0x98D0B2A8, 0x5FD61847, 0xF0DC2357, 0x7701166A, 0x0F5C3B68
+    ];
+
+
+
+    let offset_size = 0x2C;
+    let size_bytes: [u8; 4] = match boot_binario[offset_size .. offset_size + 4].try_into() {
+        Ok(slice) => slice,
+        Err(_) => {
+            eprintln!("Error crítico: no se pudieron extraer los 4 bytes... por qué carajos es?");
+            return; // para abortar la misión
+        }
+    };
+    let total_size = u32::from_le_bytes(size_bytes);
+    let payload= &boot_binario[0x150..total_size as usize];
+    let mut payload_vec: Vec<u8> = payload.to_vec();
+
+
+
+
+    // ESTO ES PARA TYPE 1 OK?
+    // Paso 1: Construir el "KIRK block temporal" (0x90 = 144 bytes)
+    let mut kirk_block = [0u8; 0x90]; // 144 bytes
+    kirk_block[0x00 .. 0x40].copy_from_slice(&boot_binario[0x110 .. 0x150]);
+    kirk_block[0x40..0x90].copy_from_slice(&boot_binario[0x80..0xD0]);
+
+    let g_key_eboot_2xx: Vec<u8> = g_key_eboot_2xx.iter().flat_map(|&v|v.to_le_bytes()).collect();
+
+    let mut g_key_eboot_2xx: [u8;144] = g_key_eboot_2xx.try_into().unwrap();
+
+
+    println!("mondongo");
+
+    // XOR 1: kirk_block[0..0x70] ^= g_key_bytes[0x14..0x84]
+    for i in 0..0x70 {
+        kirk_block[i] ^= g_key_eboot_2xx[i + 0x14];
+    }
+
+    
 }
