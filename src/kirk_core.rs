@@ -177,3 +177,7 @@ pub fn decrypt_payload(llave_aes: &[u8;16], llave_iv: &[u8;16], payload: &mut [u
     decryptor.decrypt_padded_mut::<NoPadding>(payload)
         .expect("Fallo crítico intentando desencriptar el Payload del juego");
 }
+
+pub fn get_key_vault(dir: usize) -> [u8;16] {
+    return _KEYVAULT[dir];
+}

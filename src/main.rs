@@ -221,6 +221,8 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
 		0xF91D8456, 0x39DA6BC8, 0xB3E5FEF5, 0x89C593A3, 0xFB5C8ABC, 0x6C0B7212,
 		0xE10DD3CB, 0x98D0B2A8, 0x5FD61847, 0xF0DC2357, 0x7701166A, 0x0F5C3B68
     ];
+    let code = get_key_vault(0x5D);
+    
 
     println!("g_keyEBOOT2xx[0] = 0x{:08X}", g_keyEBOOT2xx[0]);
     println!("to_le_bytes() = {:02X?}", g_keyEBOOT2xx[0].to_le_bytes());
@@ -323,7 +325,7 @@ pub fn decrypt_payload(boot_binario: &[u8]) {
 }
 
 
-pub fn final_decryption(boot_binario: &Vec<u8>) {
+pub fn final_decryption(boot_binario: &[u8]) {
 
     // Primero hay que extraer el kirk header
     let kirk_header: &[u8] = boot_binario[0x00..0x150].try_into().unwrap();
@@ -374,4 +376,10 @@ pub fn final_decryption(boot_binario: &Vec<u8>) {
     }
 
     
+}
+
+
+pub fn get_key_vault(dir: usize) -> [u8;16] {
+    return kirk_core::get_key_vault(dir);
+
 }
