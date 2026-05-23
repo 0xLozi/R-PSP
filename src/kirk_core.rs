@@ -1,4 +1,4 @@
-use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
+use aes::{Aes128Dec, cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding}};
 
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -167,9 +167,11 @@ pub fn decrypt_game_keys(llaves_encriptadas: &mut [u8; 32]) {
 // ==========================================================================
 // DESENCRIPTAR EL JUEGO REAL (PAYLOAD)
 // ==========================================================================
-pub fn decrypt_payload(llave_aes: &[u8;16], llave_iv: &[u8;16], payload: &mut [u8]) {
+pub fn decrypt_payload(llave: &[u8;16], payload: &mut [u8]) {
+    let iv = [0u8; 16];
+
     // Iniciamos el motor usando la llave AES única que extrajimos de tu EBOOT
-    let decryptor = Aes128CbcDec::new(llave_aes.into(), llave_iv.into());
+    let decryptor = Aes128CbcDec::new(llave.into(), &iv.into());
     
     // Usamos NoPadding porque el payload es código máquina binario. 
     // Cualquier byte que el motor AES asuma que es relleno y borre por error, 
@@ -178,6 +180,14 @@ pub fn decrypt_payload(llave_aes: &[u8;16], llave_iv: &[u8;16], payload: &mut [u
         .expect("Fallo crítico intentando desencriptar el Payload del juego");
 }
 
-pub fn get_key_vault(dir: usize) -> [u8;16] {
-    return _KEYVAULT[dir];
+pub fn decrypt_final(llave: &[u8;16], llave_iv: [u8;16], payload: &mut [u8]) {
+    let decryptor = Aes128CbcDec::new(llave.into(), &llave_iv.into());
+
+    decryptor.decrypt_padded_mut::<NoPadding>(payload)
+            .expect("Fallo critico... no se por qué...");
+
+}
+
+pub fn get_key_vault(dir: u8) -> [u8;16] {
+    return _KEYVAULT[dir as usize];
 }
